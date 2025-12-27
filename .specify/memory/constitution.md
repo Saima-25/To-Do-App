@@ -1,55 +1,159 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+  Sync Impact Report
+  ==================
+  Version change: 0.0.0 (template) → 1.0.0 (initial ratification)
+
+  Modified principles: N/A (initial creation)
+
+  Added sections:
+  - I. Spec-First Development
+  - II. CLI-First Interface
+  - III. Test-Driven Development
+  - IV. In-Memory Storage
+  - V. Clean Code & Simplicity
+  - VI. Auditability & Traceability
+  - Technology Stack section
+  - Development Workflow section
+  - Governance section
+
+  Removed sections: All template placeholders replaced
+
+  Templates requiring updates:
+  - .specify/templates/plan-template.md: ✅ No updates needed (Constitution Check section generic)
+  - .specify/templates/spec-template.md: ✅ No updates needed (compatible structure)
+  - .specify/templates/tasks-template.md: ✅ No updates needed (compatible structure)
+
+  Follow-up TODOs: None
+-->
+
+# Todo CLI Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Spec-First Development (NON-NEGOTIABLE)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+All features MUST be fully specified before any planning, coding, or implementation begins.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+- **Requirement → Specification → Plan → Tasks → Code**: This sequence is mandatory and irreversible
+- No agent may write, suggest, or implement code during the specification phase
+- All specifications MUST be versioned and stored in `/specs/<feature>/spec.md`
+- Changes to approved specs MUST go through formal change control via the Spec Manager Agent
+- Implementation is BLOCKED until specifications are approved by the spec-manager agent
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+**Rationale**: Spec-first ensures alignment between stakeholders, prevents scope creep, and maintains auditability for hackathon evaluation.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### II. CLI-First Interface
 
-### [PRINCIPLE_6_NAME]
+The Todo application MUST expose all functionality through a command-line interface.
 
+- **Text I/O Protocol**: Commands accept arguments via stdin/args, output to stdout, errors to stderr
+- **Human-Readable Output**: Default output MUST be human-readable and formatted for terminal display
+- **Predictable Commands**: Follow standard CLI conventions (verb-noun patterns, `--help` flags, exit codes)
+- **Error Messages**: MUST be actionable and include guidance on how to resolve the issue
 
-[PRINCIPLE__DESCRIPTION]
+**Rationale**: CLI-first ensures the application is scriptable, testable, and demonstrable for hackathon judges.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### III. Test-Driven Development
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+Tests MUST be written before implementation code.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- **Red-Green-Refactor**: Write failing test → Implement to pass → Refactor without breaking tests
+- **Acceptance Tests**: Each user story MUST have corresponding acceptance tests derived from spec scenarios
+- **Test Independence**: Each test MUST be independently runnable without side effects
+- **Coverage**: All public functions and CLI commands MUST have test coverage
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+**Rationale**: TDD ensures code correctness, enables confident refactoring, and demonstrates engineering discipline.
+
+### IV. In-Memory Storage
+
+Task data MUST be stored in memory during application runtime.
+
+- **No External Dependencies**: The application MUST NOT require databases, files, or network connections for core functionality
+- **Session-Based**: Tasks persist only for the duration of the application session
+- **Data Structure**: Use appropriate Python data structures (lists, dictionaries) for task storage
+- **Future-Ready**: Design MUST allow for persistence layer to be added later without breaking existing functionality
+
+**Rationale**: In-memory storage simplifies the implementation scope for hackathon while demonstrating core functionality.
+
+### V. Clean Code & Simplicity
+
+Code MUST be readable, maintainable, and minimal.
+
+- **YAGNI**: Do not implement features not explicitly required by specifications
+- **Single Responsibility**: Each module, class, and function MUST have one clear purpose
+- **Meaningful Names**: Variables, functions, and modules MUST have descriptive, self-documenting names
+- **No Premature Optimization**: Optimize only when specifications require specific performance targets
+- **Minimal Dependencies**: Use Python standard library where possible; external packages MUST be justified
+
+**Rationale**: Clean code reduces bugs, speeds up development, and impresses hackathon judges.
+
+### VI. Auditability & Traceability
+
+All work MUST be traceable from requirement to implementation.
+
+- **PHR (Prompt History Records)**: Every significant interaction MUST be recorded in `history/prompts/`
+- **ADR (Architecture Decision Records)**: Significant design decisions MUST be documented in `history/adr/`
+- **Spec Traceability**: Each task MUST reference its parent spec requirement
+- **Git History**: Commits MUST reference the spec/task being implemented
+
+**Rationale**: Full traceability demonstrates engineering rigor and enables hackathon judges to follow the development process.
+
+## Technology Stack
+
+- **Language**: Python 3.13+
+- **CLI Framework**: Standard `argparse` or `click` (to be decided during planning)
+- **Testing**: `pytest` for unit and integration tests
+- **Code Quality**: `ruff` for linting, `black` for formatting
+- **Type Hints**: Required for all public interfaces
+- **Documentation**: Docstrings for all public modules and functions
+
+## Development Workflow
+
+### Phase Progression
+
+1. **Requirement Analysis**: Domain Agent clarifies user intent and business rules
+2. **Specification**: Spec Manager creates versioned spec with acceptance criteria
+3. **Planning**: Architecture and implementation approach documented
+4. **Task Generation**: Actionable, testable tasks derived from plan
+5. **Implementation**: TDD cycle (Red → Green → Refactor) for each task
+
+### Agent Responsibilities
+
+| Agent | Gate | Responsibility |
+|-------|------|----------------|
+| todo-domain-agent | Requirements | Clarify domain rules, user expectations, edge cases |
+| todo-spec-manager | Specifications | Create, version, and enforce specs; block non-compliant work |
+| python-cli-expert | Planning | Validate CLI design patterns and user experience |
+| hackathon-judge-reviewer | All Phases | Audit compliance, traceability, and submission readiness |
+
+### Quality Gates
+
+- **Spec Gate**: No planning until spec is approved
+- **Plan Gate**: No task generation until plan is reviewed
+- **Implementation Gate**: No coding until tasks are defined
+- **Merge Gate**: All tests pass, code reviewed, spec requirements met
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+### Amendment Process
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+1. Propose change with rationale
+2. Impact analysis on existing specs, plans, and code
+3. Approval required from spec-manager agent
+4. Version increment following semantic versioning
+5. Update all dependent artifacts
+
+### Versioning Policy
+
+- **MAJOR**: Breaking changes to principles or workflow that invalidate existing artifacts
+- **MINOR**: New principles, sections, or expanded guidance
+- **PATCH**: Clarifications, typo fixes, non-semantic refinements
+
+### Compliance
+
+- This constitution supersedes all other development practices
+- All PRs and reviews MUST verify compliance with these principles
+- Violations MUST be documented and remediated before merge
+- Complexity beyond these principles MUST be explicitly justified
+
+**Version**: 1.0.0 | **Ratified**: 2025-12-28 | **Last Amended**: 2025-12-28
