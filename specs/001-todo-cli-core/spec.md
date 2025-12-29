@@ -101,6 +101,11 @@ As a user, I want to delete a task by its ID so that I can remove tasks I no lon
 - **Maximum title/description length**: System handles reasonably long text inputs (assumed max 500 characters for title, 2000 for description)
 - **Special characters**: Titles and descriptions may contain special characters, quotes, and unicode
 - **Whitespace-only title**: Treated as empty title (invalid)
+- **Missing storage file**: System creates new file with empty task list
+- **Corrupted JSON**: System handles parsing errors gracefully, starts with empty task list and logs warning
+- **Storage directory missing**: System creates `~/.todo/` directory automatically
+- **File permission errors**: System displays clear error message if unable to read/write storage file
+- **Concurrent modifications**: Not supported (single-user assumption); last write wins if multiple CLI instances run
 
 ## Requirements *(mandatory)*
 
@@ -112,7 +117,7 @@ As a user, I want to delete a task by its ID so that I can remove tasks I no lon
 - **FR-002**: System MUST allow users to add an optional description (0-2000 characters) when creating a task
 - **FR-003**: System MUST automatically assign a unique positive integer ID to each new task
 - **FR-004**: System MUST set the initial status of all new tasks to "incomplete"
-- **FR-005**: System MUST store all tasks in memory for the duration of the application session
+- **FR-005**: System MUST persist all tasks to a local JSON file to survive across CLI command executions
 
 #### Task Viewing
 
@@ -138,7 +143,7 @@ As a user, I want to delete a task by its ID so that I can remove tasks I no lon
 
 - **FR-017**: System MUST allow users to delete a task by specifying its ID
 - **FR-018**: System MUST NOT modify IDs of remaining tasks after deletion
-- **FR-019**: System MUST remove deleted tasks permanently from memory
+- **FR-019**: System MUST remove deleted tasks permanently from storage
 
 #### Error Handling
 
@@ -152,6 +157,16 @@ As a user, I want to delete a task by its ID so that I can remove tasks I no lon
 - **FR-024**: System MUST provide `--help` documentation for all commands
 - **FR-025**: System MUST return appropriate exit codes (0 for success, non-zero for errors)
 - **FR-026**: System MUST output results to stdout and errors to stderr
+
+#### Data Persistence
+
+- **FR-027**: System MUST store tasks in JSON format at `~/.todo/tasks.json` by default
+- **FR-028**: System MUST support `TODO_FILE` environment variable to override default storage location
+- **FR-029**: System MUST load existing tasks from file on CLI startup
+- **FR-030**: System MUST save tasks to file immediately after each mutation operation (add, update, delete, mark complete/incomplete)
+- **FR-031**: System MUST create storage directory if it does not exist
+- **FR-032**: System MUST handle missing or corrupted JSON file gracefully (start with empty task list)
+- **FR-033**: System MUST maintain ID counter state across CLI executions to ensure unique IDs
 
 ### Key Entities
 
@@ -172,12 +187,15 @@ As a user, I want to delete a task by its ID so that I can remove tasks I no lon
 - **SC-005**: 100% of invalid operations (empty title, non-existent ID) result in clear, actionable error messages
 - **SC-006**: All five core operations (add, list, update, delete, mark complete) are accessible via CLI
 - **SC-007**: New users can successfully add and view their first task within 1 minute of starting the application
-- **SC-008**: Zero data loss occurs during normal operation within a single session
+- **SC-008**: Zero data loss occurs during normal operation across CLI executions
+- **SC-009**: Tasks added in one CLI invocation are immediately visible in subsequent invocations
 
 ## Assumptions
 
-- Tasks persist only for the duration of the application session (in-memory storage per constitution)
+- Tasks persist across CLI command executions via JSON file storage (per constitution v1.1.0)
 - Task IDs are simple incrementing integers starting from 1
 - A single user interacts with the application at a time (no concurrent access considerations)
 - The CLI operates in a terminal environment with standard input/output capabilities
 - Unicode text is supported for titles and descriptions
+- File system has write permissions for the storage directory (~/.todo/ by default)
+- JSON file is human-readable and can be manually inspected or edited if needed

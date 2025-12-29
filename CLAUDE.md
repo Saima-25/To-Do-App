@@ -210,3 +210,10 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.13+ (per constitution Technology Stack) + `click` (CLI framework), `json` (stdlib), `pathlib` (stdlib), `dataclasses` (stdlib) (002-todo-cli-persistence)
+- JSON file at `~/.todo/tasks.json` (configurable via `TODO_FILE` environment variable) (002-todo-cli-persistence)
+
+## Recent Changes
+- 002-todo-cli-persistence: Added Python 3.13+ (per constitution Technology Stack) + `click` (CLI framework), `json` (stdlib), `pathlib` (stdlib), `dataclasses` (stdlib)

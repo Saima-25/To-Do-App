@@ -1,29 +1,32 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) → 1.0.0 (initial ratification)
+  Version change: 1.0.0 → 1.1.0
 
-  Modified principles: N/A (initial creation)
+  Modified principles:
+  - IV. In-Memory Storage → IV. JSON File Persistence (BREAKING CHANGE)
 
-  Added sections:
-  - I. Spec-First Development
-  - II. CLI-First Interface
-  - III. Test-Driven Development
-  - IV. In-Memory Storage
-  - V. Clean Code & Simplicity
-  - VI. Auditability & Traceability
-  - Technology Stack section
-  - Development Workflow section
-  - Governance section
+  Reason for change:
+  - CLI commands run in separate processes, making per-process memory insufficient
+  - Tasks must persist across command invocations (add → list → update → delete workflow)
+  - JSON file storage required while maintaining "no external database" constraint
 
-  Removed sections: All template placeholders replaced
+  Impact on existing artifacts:
+  - specs/001-todo-cli-core/spec.md: MUST be updated (FR-005 and related requirements)
+  - specs/001-todo-cli-core/plan.md: MUST be updated (storage architecture)
+  - src/services/task_service.py: MUST add JSON load/save functionality
+  - tests/: MUST add persistence tests and update fixtures
 
   Templates requiring updates:
   - .specify/templates/plan-template.md: ✅ No updates needed (Constitution Check section generic)
   - .specify/templates/spec-template.md: ✅ No updates needed (compatible structure)
   - .specify/templates/tasks-template.md: ✅ No updates needed (compatible structure)
 
-  Follow-up TODOs: None
+  Follow-up TODOs:
+  - Update spec.md to reflect JSON persistence requirements
+  - Update plan.md with new storage architecture
+  - Implement TaskService JSON load/save methods
+  - Add tests for file persistence
 -->
 
 # Todo CLI Constitution
@@ -64,16 +67,18 @@ Tests MUST be written before implementation code.
 
 **Rationale**: TDD ensures code correctness, enables confident refactoring, and demonstrates engineering discipline.
 
-### IV. In-Memory Storage
+### IV. JSON File Persistence
 
-Task data MUST be stored in memory during application runtime.
+Task data MUST persist across CLI command executions using local JSON file storage.
 
-- **No External Dependencies**: The application MUST NOT require databases, files, or network connections for core functionality
-- **Session-Based**: Tasks persist only for the duration of the application session
-- **Data Structure**: Use appropriate Python data structures (lists, dictionaries) for task storage
-- **Future-Ready**: Design MUST allow for persistence layer to be added later without breaking existing functionality
+- **No External Databases**: The application MUST NOT require external databases or network connections
+- **JSON File Storage**: Tasks MUST be stored in a local JSON file (default: `~/.todo/tasks.json`)
+- **Cross-Command Persistence**: Tasks MUST survive between CLI invocations to support workflow (add → list → update → delete)
+- **Data Structure**: Use Python dictionaries/lists internally, serialize to JSON for persistence
+- **Auto-Save**: Changes MUST be persisted immediately after each mutation operation
+- **File Location**: Default to `~/.todo/tasks.json`, support `TODO_FILE` environment variable for custom paths
 
-**Rationale**: In-memory storage simplifies the implementation scope for hackathon while demonstrating core functionality.
+**Rationale**: CLI commands run in separate processes. JSON file persistence is required to maintain state across commands while keeping the implementation simple and avoiding external database dependencies.
 
 ### V. Clean Code & Simplicity
 
@@ -156,4 +161,4 @@ All work MUST be traceable from requirement to implementation.
 - Violations MUST be documented and remediated before merge
 - Complexity beyond these principles MUST be explicitly justified
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-28 | **Last Amended**: 2025-12-28
+**Version**: 1.1.0 | **Ratified**: 2025-12-28 | **Last Amended**: 2025-12-29
