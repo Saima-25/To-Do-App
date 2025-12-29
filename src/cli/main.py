@@ -6,8 +6,15 @@ import click
 
 from src.services.task_service import TaskService
 
-# Global task service instance (session-based, in-memory)
-_service = TaskService()
+
+def _get_service() -> TaskService:
+    """Get a TaskService instance that respects TODO_FILE environment variable.
+
+    This function creates a new service instance on each call to ensure
+    the TODO_FILE environment variable is checked at runtime, not at
+    module import time.
+    """
+    return TaskService()
 
 
 @click.group()
@@ -15,8 +22,12 @@ _service = TaskService()
 def cli() -> None:
     """Todo CLI - A simple command-line task manager.
 
-    Manage your tasks from the command line. Tasks are stored in memory
-    and persist only for the duration of the session.
+    Manage your tasks from the command line. Tasks are stored in a JSON file
+    and persist across CLI sessions.
+
+    Storage location:
+    - Default: ~/.todo/tasks.json
+    - Custom: Set TODO_FILE environment variable
     """
     pass
 
@@ -41,7 +52,7 @@ def add(title: str, description: str) -> None:
         todo add "Call dentist" -d "Schedule annual checkup"
     """
     try:
-        task = _service.add(title, description)
+        task = _get_service().add(title, description)
         click.echo(f'Task {task.id} added: "{task.title}"')
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
@@ -59,7 +70,7 @@ def list_tasks() -> None:
 
         todo list
     """
-    tasks = _service.list_all()
+    tasks = _get_service().list_all()
 
     if not tasks:
         click.echo('No tasks found. Add a task with: todo add "Your task title"')
@@ -84,7 +95,7 @@ def complete(task_id: int) -> None:
         todo complete 1
     """
     try:
-        _service.mark_complete(task_id)
+        _get_service().mark_complete(task_id)
         click.echo(f"Task {task_id} marked as complete")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
@@ -101,7 +112,7 @@ def incomplete(task_id: int) -> None:
         todo incomplete 1
     """
     try:
-        _service.mark_incomplete(task_id)
+        _get_service().mark_incomplete(task_id)
         click.echo(f"Task {task_id} marked as incomplete")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
@@ -140,7 +151,7 @@ def update(task_id: int, title: str | None, description: str | None) -> None:
         sys.exit(1)
 
     try:
-        _service.update(task_id, title=title, description=description)
+        _get_service().update(task_id, title=title, description=description)
         click.echo(f"Task {task_id} updated")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
@@ -159,7 +170,7 @@ def delete(task_id: int) -> None:
         todo delete 1
     """
     try:
-        _service.delete(task_id)
+        _get_service().delete(task_id)
         click.echo(f"Task {task_id} deleted")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)

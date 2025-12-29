@@ -298,3 +298,73 @@ class TestTaskServiceGet:
         task = task_service.get(99)
 
         assert task is None
+
+
+class TestTaskServicePersistence:
+    """Tests for TaskService persistence (cross-session behavior).
+
+    Following TDD for User Story 1 - these tests verify that tasks
+    persist across service instances (simulating CLI sessions).
+    """
+
+    def test_add_task_persists_to_storage(self, temp_storage_path):
+        """Test that adding a task saves it to the storage file."""
+        service = TaskService(storage_path=temp_storage_path)
+        service.add("Buy groceries", "From farmers market")
+
+        # Verify file was created
+        assert temp_storage_path.exists()
+
+        # Verify we can load it in a new service instance
+        new_service = TaskService(storage_path=temp_storage_path)
+        tasks = new_service.list_all()
+
+        assert len(tasks) == 1
+        assert tasks[0].title == "Buy groceries"
+        assert tasks[0].description == "From farmers market"
+
+    def test_list_all_loads_from_storage(self, temp_storage_path):
+        """Test that list_all returns tasks loaded from storage."""
+        # Create first service and add tasks
+        service1 = TaskService(storage_path=temp_storage_path)
+        service1.add("Task 1")
+        service1.add("Task 2")
+        service1.add("Task 3")
+
+        # Create second service instance (simulates new CLI session)
+        service2 = TaskService(storage_path=temp_storage_path)
+        tasks = service2.list_all()
+
+        assert len(tasks) == 3
+        assert tasks[0].title == "Task 1"
+        assert tasks[1].title == "Task 2"
+        assert tasks[2].title == "Task 3"
+
+    def test_id_counter_persists_across_sessions(self, temp_storage_path):
+        """Test that ID counter persists across service instances."""
+        # Session 1: Add 2 tasks (IDs 1, 2)
+        service1 = TaskService(storage_path=temp_storage_path)
+        service1.add("Task 1")
+        service1.add("Task 2")
+
+        # Session 2: Add 1 more task (should get ID 3)
+        service2 = TaskService(storage_path=temp_storage_path)
+        task3 = service2.add("Task 3")
+
+        assert task3.id == 3
+
+        # Verify all tasks have correct IDs
+        tasks = service2.list_all()
+        assert [t.id for t in tasks] == [1, 2, 3]
+
+    def test_empty_storage_initializes_correctly(self, temp_storage_path):
+        """Test that service initializes correctly with no storage file."""
+        service = TaskService(storage_path=temp_storage_path)
+
+        # Should start with empty task list
+        tasks = service.list_all()
+        assert len(tasks) == 0
+
+        # First task should get ID 1
+        task = service.add("First task")
+        assert task.id == 1

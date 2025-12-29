@@ -30,3 +30,33 @@ class Task:
     def __str__(self) -> str:
         """Return a human-readable string representation."""
         return f"Task {self.id}: {self.title} [{self.status.value}]"
+
+    def to_dict(self) -> dict:
+        """Serialize task to JSON-compatible dictionary.
+
+        Returns:
+            Dictionary with id, title, description, and status (as string).
+        """
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "status": self.status.value,  # Convert enum to string
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Task":
+        """Deserialize task from dictionary.
+
+        Args:
+            data: Dictionary containing task fields.
+
+        Returns:
+            Task instance created from dictionary data.
+        """
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            description=data["description"],
+            status=TaskStatus(data["status"]),  # Convert string to enum
+        )

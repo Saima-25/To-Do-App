@@ -1,18 +1,22 @@
 """Integration tests for the Todo CLI commands."""
 
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
-from src.cli.main import cli, _service
+from src.cli.main import cli
 
 
-@pytest.fixture(autouse=True)
-def reset_service() -> None:
-    """Reset the global service before each test."""
-    _service._tasks.clear()
-    _service._next_id = 1
+@pytest.fixture
+def isolated_storage(tmp_path: Path, monkeypatch):
+    """Provide isolated storage for each test via TODO_FILE environment variable."""
+    storage_path = tmp_path / "test_tasks.json"
+    monkeypatch.setenv("TODO_FILE", str(storage_path))
+    return storage_path
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestAddCommand:
     """Integration tests for the 'todo add' command."""
 
@@ -50,6 +54,7 @@ class TestAddCommand:
         assert "Task 2 added" in result2.output
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestListCommand:
     """Integration tests for the 'todo list' command."""
 
@@ -98,6 +103,7 @@ class TestListCommand:
         assert pos1 < pos2 < pos3
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestCompleteCommand:
     """Integration tests for the 'todo complete' command."""
 
@@ -131,6 +137,7 @@ class TestCompleteCommand:
         assert "complete" in task_line
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestIncompleteCommand:
     """Integration tests for the 'todo incomplete' command."""
 
@@ -152,6 +159,7 @@ class TestIncompleteCommand:
         assert "Error:" in result.output
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestUpdateCommand:
     """Integration tests for the 'todo update' command."""
 
@@ -201,6 +209,7 @@ class TestUpdateCommand:
         assert "Provide --title and/or --description" in result.output
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestDeleteCommand:
     """Integration tests for the 'todo delete' command."""
 
@@ -233,6 +242,7 @@ class TestDeleteCommand:
         assert "Task 2" in result.output
 
 
+@pytest.mark.usefixtures("isolated_storage")
 class TestHelpCommand:
     """Integration tests for --help functionality."""
 
@@ -255,3 +265,226 @@ class TestHelpCommand:
         assert result.exit_code == 0
         assert "TITLE" in result.output
         assert "--description" in result.output
+
+
+class TestCrossSessionPersistence:
+    """Tests for task persistence across CLI sessions (User Story 1).
+
+    Following TDD - these tests verify the critical requirement that tasks
+    persist across CLI command invocations.
+    """
+
+    def test_add_task_persists_across_cli_invocations(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test that tasks added in one CLI invocation appear in the next."""
+        # First CLI invocation: add a task
+        result1 = cli_runner.invoke(cli, ["add", "Buy groceries"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result1.exit_code == 0
+        assert "Task 1 added" in result1.output
+
+        # Second CLI invocation: list tasks (simulates new terminal session)
+        result2 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+        assert "Buy groceries" in result2.output
+        assert "incomplete" in result2.output
+
+    def test_multiple_tasks_persist_with_correct_ids(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test that multiple tasks persist with sequential IDs across sessions."""
+        # Session 1: Add first task
+        result1 = cli_runner.invoke(cli, ["add", "Task 1"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result1.exit_code == 0
+
+        # Session 2: Add second task
+        result2 = cli_runner.invoke(cli, ["add", "Task 2"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+        assert "Task 2 added" in result2.output
+
+        # Session 3: List all tasks
+        result3 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result3.exit_code == 0
+        assert "Task 1" in result3.output
+        assert "Task 2" in result3.output
+
+    def test_status_changes_persist_across_sessions(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test that marking task complete persists to next session."""
+        # Session 1: Add task
+        cli_runner.invoke(cli, ["add", "Buy groceries"], env={"TODO_FILE": str(temp_storage_path)})
+
+        # Session 2: Mark complete
+        result2 = cli_runner.invoke(cli, ["complete", "1"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+
+        # Session 3: Verify status persisted
+        result3 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result3.exit_code == 0
+        assert "Buy groceries" in result3.output
+        assert "complete" in result3.output
+
+    def test_tasks_persist_after_terminal_close_simulation(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test complete workflow: add → close → list → complete → close → list."""
+        # Step 1: Add task (first terminal session)
+        result1 = cli_runner.invoke(cli, ["add", "Important task"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result1.exit_code == 0
+
+        # Simulate closing terminal (no explicit action needed - just create new runner context)
+
+        # Step 2: List tasks (new terminal session)
+        result2 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+        assert "Important task" in result2.output
+        assert "incomplete" in result2.output
+
+        # Step 3: Mark complete (same or different session)
+        result3 = cli_runner.invoke(cli, ["complete", "1"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result3.exit_code == 0
+
+        # Simulate closing terminal again
+
+        # Step 4: List again (yet another new terminal session)
+        result4 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result4.exit_code == 0
+        assert "Important task" in result4.output
+        assert "complete" in result4.output
+
+    def test_update_changes_persist_across_sessions(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test that task updates persist to next session (User Story 3)."""
+        # Session 1: Add task
+        cli_runner.invoke(cli, ["add", "Buy groceries", "-d", "Original description"], env={"TODO_FILE": str(temp_storage_path)})
+
+        # Session 2: Update title
+        result2 = cli_runner.invoke(cli, ["update", "1", "-t", "Buy organic groceries"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+
+        # Session 3: Verify title update persisted
+        result3 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result3.exit_code == 0
+        assert "Buy organic groceries" in result3.output
+
+        # Session 4: Update description
+        result4 = cli_runner.invoke(cli, ["update", "1", "-d", "From the farmers market"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result4.exit_code == 0
+
+        # Session 5: Verify both updates persisted
+        result5 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result5.exit_code == 0
+        assert "Buy organic groceries" in result5.output
+        assert "From the farmers market" in result5.output
+
+    def test_delete_persists_across_sessions(self, cli_runner: CliRunner, temp_storage_path) -> None:
+        """Test that task deletion persists to next session (User Story 4)."""
+        # Session 1: Add three tasks
+        cli_runner.invoke(cli, ["add", "Task 1"], env={"TODO_FILE": str(temp_storage_path)})
+        cli_runner.invoke(cli, ["add", "Task 2"], env={"TODO_FILE": str(temp_storage_path)})
+        cli_runner.invoke(cli, ["add", "Task 3"], env={"TODO_FILE": str(temp_storage_path)})
+
+        # Session 2: Delete middle task
+        result2 = cli_runner.invoke(cli, ["delete", "2"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result2.exit_code == 0
+
+        # Session 3: Verify deletion persisted and other tasks remain
+        result3 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result3.exit_code == 0
+        assert "Task 1" in result3.output
+        assert "Task 2" not in result3.output
+        assert "Task 3" in result3.output
+
+        # Session 4: Delete first task
+        result4 = cli_runner.invoke(cli, ["delete", "1"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result4.exit_code == 0
+
+        # Session 5: Verify only Task 3 remains
+        result5 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(temp_storage_path)})
+        assert result5.exit_code == 0
+        assert "Task 1" not in result5.output
+        assert "Task 2" not in result5.output
+        assert "Task 3" in result5.output
+
+
+class TestStorageConfiguration:
+    """Tests for custom storage location via TODO_FILE environment variable (User Story 5)."""
+
+    def test_custom_storage_location_via_env_var(self, cli_runner: CliRunner, tmp_path) -> None:
+        """Test that TODO_FILE environment variable sets custom storage location (User Story 5)."""
+        # Create custom storage path
+        custom_storage = tmp_path / "custom_location" / "my_tasks.json"
+
+        # Add task with custom storage location
+        result1 = cli_runner.invoke(cli, ["add", "Custom location task"], env={"TODO_FILE": str(custom_storage)})
+        assert result1.exit_code == 0
+
+        # Verify file was created at custom location
+        assert custom_storage.exists(), f"Storage file not created at {custom_storage}"
+
+        # Verify task is stored in custom location
+        result2 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(custom_storage)})
+        assert result2.exit_code == 0
+        assert "Custom location task" in result2.output
+
+        # Verify data is actually in the custom file
+        import json
+        with open(custom_storage) as f:
+            data = json.load(f)
+        assert len(data["tasks"]) == 1
+        assert data["tasks"][0]["title"] == "Custom location task"
+
+    def test_auto_creates_custom_storage_directory(self, cli_runner: CliRunner, tmp_path) -> None:
+        """Test that nested directories are auto-created for custom storage path (User Story 5)."""
+        # Create deeply nested custom storage path that doesn't exist yet
+        custom_storage = tmp_path / "deeply" / "nested" / "custom" / "directory" / "tasks.json"
+
+        # Verify directories don't exist yet
+        assert not custom_storage.parent.exists()
+
+        # Add task - should auto-create all parent directories
+        result = cli_runner.invoke(cli, ["add", "Task in nested dir"], env={"TODO_FILE": str(custom_storage)})
+        assert result.exit_code == 0
+
+        # Verify all directories were created
+        assert custom_storage.parent.exists()
+        assert custom_storage.parent.is_dir()
+
+        # Verify file was created
+        assert custom_storage.exists()
+
+        # Verify task was saved
+        result2 = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(custom_storage)})
+        assert result2.exit_code == 0
+        assert "Task in nested dir" in result2.output
+
+
+class TestPerformance:
+    """Performance tests to verify scalability requirements."""
+
+    def test_list_1000_tasks_under_2_seconds(self, cli_runner: CliRunner, tmp_path) -> None:
+        """Test that listing 1000 tasks completes in under 2 seconds (SC-003)."""
+        import time
+
+        # Setup: Create storage with 1000 tasks
+        storage_path = tmp_path / "perf_test.json"
+        data = {
+            "next_id": 1001,
+            "tasks": [
+                {
+                    "id": i,
+                    "title": f"Task {i}",
+                    "description": f"Description for task {i}",
+                    "status": "incomplete"
+                }
+                for i in range(1, 1001)
+            ]
+        }
+
+        # Write directly to storage
+        import json
+        with open(storage_path, "w") as f:
+            json.dump(data, f)
+
+        # Measure list command performance
+        start_time = time.time()
+        result = cli_runner.invoke(cli, ["list"], env={"TODO_FILE": str(storage_path)})
+        elapsed_time = time.time() - start_time
+
+        # Assertions
+        assert result.exit_code == 0
+        assert "Task 1" in result.output
+        assert "Task 1000" in result.output
+        assert elapsed_time < 2.0, f"List command took {elapsed_time:.2f}s, expected <2s"
