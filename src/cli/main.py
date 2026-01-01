@@ -1,181 +1,136 @@
-"""Command-line interface for the Todo CLI application."""
-
 import sys
-
-import click
-
 from src.services.task_service import TaskService
 
 
-def _get_service() -> TaskService:
-    """Get a TaskService instance that respects TODO_FILE environment variable.
-
-    This function creates a new service instance on each call to ensure
-    the TODO_FILE environment variable is checked at runtime, not at
-    module import time.
-    """
-    return TaskService()
-
-
-@click.group()
-@click.version_option(version="0.1.0", prog_name="todo")
-def cli() -> None:
-    """Todo CLI - A simple command-line task manager.
-
-    Manage your tasks from the command line. Tasks are stored in a JSON file
-    and persist across CLI sessions.
-
-    Storage location:
-    - Default: ~/.todo/tasks.json
-    - Custom: Set TODO_FILE environment variable
-    """
-    pass
+def display_menu():
+    print("\n--- TODO APPLICATION ---")
+    print("\n1. Add task")
+    print("2. View all tasks")
+    print("3. Update task")
+    print("4. Delete task")
+    print("5. Mark task complete")
+    print("6. Mark task incomplete")
+    print("7. Exit")
+    print("\nEnter your choice (1-7): ", end="")
 
 
-@cli.command()
-@click.argument("title")
-@click.option(
-    "--description",
-    "-d",
-    default="",
-    help="Optional description for the task (max 2000 characters).",
-)
-def add(title: str, description: str) -> None:
-    """Add a new task with the given TITLE.
-
-    The task will be assigned a unique ID and start with 'incomplete' status.
-
-    Examples:
-
-        todo add "Buy groceries"
-
-        todo add "Call dentist" -d "Schedule annual checkup"
-    """
+def add_task(service):
+    title = input("Enter task title: ")
+    description = input("Enter task description: ")
     try:
-        task = _get_service().add(title, description)
-        click.echo(f'Task {task.id} added: "{task.title}"')
+        task = service.add(title, description)
+        print(f"Success: Task {task.id} added.")
     except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        print(f"Error: {e}")
 
 
-@cli.command("list")
-def list_tasks() -> None:
-    """List all tasks with their ID, status, title, and description.
-
-    Tasks are displayed in order by ID (ascending). If no tasks exist,
-    a helpful message is shown.
-
-    Examples:
-
-        todo list
-    """
-    tasks = _get_service().list_all()
-
+def view_tasks(service):
+    tasks = service.list_all()
     if not tasks:
-        click.echo('No tasks found. Add a task with: todo add "Your task title"')
+        print("\nNo tasks found.")
         return
 
-    # Column headers
-    click.echo(f"{'ID':<4} {'Status':<12} {'Title':<30} {'Description'}")
-    click.echo(f"{'──':<4} {'──────────':<12} {'─' * 30} {'─' * 30}")
-
+    print("\n--- Task List ---")
     for task in tasks:
-        desc = task.description[:30] + "..." if len(task.description) > 30 else task.description
-        click.echo(f"{task.id:<4} {task.status.value:<12} {task.title:<30} {desc}")
+        status_symbol = "[X]" if task.status.value == "complete" else "[ ]"
+        print(f"ID: {task.id} | {status_symbol} {task.title}")
+        if task.description:
+            print(f"   Description: {task.description}")
 
 
-@cli.command()
-@click.argument("task_id", type=int)
-def complete(task_id: int) -> None:
-    """Mark a task as complete by its ID.
-
-    Examples:
-
-        todo complete 1
-    """
+def update_task(service):
     try:
-        _get_service().mark_complete(task_id)
-        click.echo(f"Task {task_id} marked as complete")
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        task_id_input = input("Enter task ID: ")
+        if not task_id_input:
+            print("Error: ID is required.")
+            return
+        task_id = int(task_id_input)
+
+        task = service.get(task_id)
+        if not task:
+            print(f"Error: Task with ID {task_id} not found.")
+            return
+
+        new_title = input(f"Enter new title (leave blank to keep old): ")
+        new_description = input(f"Enter new description (leave blank to keep old): ")
+
+        service.update(
+            task_id,
+            title=new_title if new_title else None,
+            description=new_description if new_description else None
+        )
+        print(f"Success: Task {task_id} updated.")
+    except ValueError:
+        print("Error: Invalid input. ID must be a number.")
 
 
-@cli.command()
-@click.argument("task_id", type=int)
-def incomplete(task_id: int) -> None:
-    """Mark a task as incomplete by its ID.
-
-    Examples:
-
-        todo incomplete 1
-    """
+def delete_task(service):
     try:
-        _get_service().mark_incomplete(task_id)
-        click.echo(f"Task {task_id} marked as incomplete")
+        task_id_input = input("Enter task ID: ")
+        if not task_id_input:
+            print("Error: ID is required.")
+            return
+        task_id = int(task_id_input)
+        service.delete(task_id)
+        print(f"Success: Task {task_id} deleted.")
     except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        if "Invalid input" in str(e): # Handle non-integer
+             print("Error: Invalid input. ID must be a number.")
+        else:
+             print(f"Error: {e}")
 
 
-@cli.command()
-@click.argument("task_id", type=int)
-@click.option(
-    "--title",
-    "-t",
-    default=None,
-    help="New title for the task (1-500 characters).",
-)
-@click.option(
-    "--description",
-    "-d",
-    default=None,
-    help="New description for the task (max 2000 characters).",
-)
-def update(task_id: int, title: str | None, description: str | None) -> None:
-    """Update a task's title and/or description by its ID.
-
-    At least one of --title or --description must be provided.
-
-    Examples:
-
-        todo update 1 --title "Buy organic groceries"
-
-        todo update 1 -d "From the farmers market"
-
-        todo update 1 -t "New title" -d "New description"
-    """
-    if title is None and description is None:
-        click.echo("Error: Provide --title and/or --description to update", err=True)
-        sys.exit(1)
-
+def mark_complete(service):
     try:
-        _get_service().update(task_id, title=title, description=description)
-        click.echo(f"Task {task_id} updated")
+        task_id_input = input("Enter task ID: ")
+        if not task_id_input:
+            print("Error: ID is required.")
+            return
+        task_id = int(task_id_input)
+        service.mark_complete(task_id)
+        print(f"Success: Task {task_id} marked complete.")
     except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        print(f"Error: {e}")
 
 
-@cli.command()
-@click.argument("task_id", type=int)
-def delete(task_id: int) -> None:
-    """Delete a task by its ID.
-
-    This action is permanent and cannot be undone.
-
-    Examples:
-
-        todo delete 1
-    """
+def mark_incomplete(service):
     try:
-        _get_service().delete(task_id)
-        click.echo(f"Task {task_id} deleted")
+        task_id_input = input("Enter task ID: ")
+        if not task_id_input:
+            print("Error: ID is required.")
+            return
+        task_id = int(task_id_input)
+        service.mark_incomplete(task_id)
+        print(f"Success: Task {task_id} marked incomplete.")
     except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+        print(f"Error: {e}")
+
+
+def main():
+    service = TaskService()
+
+    while True:
+        display_menu()
+        choice = input().strip()
+
+        if choice == '1':
+            add_task(service)
+        elif choice == '2':
+            view_tasks(service)
+        elif choice == '3':
+            update_task(service)
+        elif choice == '4':
+            delete_task(service)
+        elif choice == '5':
+            mark_complete(service)
+        elif choice == '6':
+            mark_incomplete(service)
+        elif choice == '7':
+            print("Goodbye!")
+            break
+        else:
+            print("Error: Invalid choice. Please enter 1-7.")
 
 
 if __name__ == "__main__":
-    cli()
+    main()
